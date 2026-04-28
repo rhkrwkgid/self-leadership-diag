@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>셀프리더십 진단 도구</title>
+  <meta name="description" content="『스스로 움직이는 팀을 만드는 기술』 부록 수록 셀프리더십 진단 도구" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f1b2d; font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+    button { cursor: pointer; border: none; font-family: inherit; }
+    .score-btn { transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; }
+    .score-btn:hover { transform: scale(1.12); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const SECTIONS = [
+      {
+        id: "behavior",
+        title: "행동중심전략",
+        subtitle: "Behavior-Focused Strategies",
+        desc: "목표를 향한 행동을 관리하는 능력",
+        color: "#1A2E4A",
+        accent: "#2563A8",
+        items: [
+          "나는 내 행동의 결과를 예측하고 계획을 세운다",
+          "중요한 일을 하기 전에 스스로에게 상기시킨다",
+          "어려운 업무를 시작하기 전에 먼저 목표를 설정한다",
+          "업무 수행 중 스스로를 점검하고 피드백한다",
+          "목표 달성 시 스스로에게 보상한다",
+          "잘못된 행동을 했을 때 스스로 반성한다",
+          "주변 환경을 목표 달성에 유리하게 조성한다",
+          "방해 요소를 의식적으로 제거한다",
+        ],
+      },
+      {
+        id: "natural",
+        title: "자연적보상전략",
+        subtitle: "Natural Reward Strategies",
+        desc: "일 자체에서 즐거움을 찾는 능력",
+        color: "#1E6B5A",
+        accent: "#2da882",
+        items: [
+          "업무 중 즐거운 측면에 주의를 기울인다",
+          "일에서 의미와 목적을 찾으려 노력한다",
+          "업무 수행 과정 자체를 즐긴다",
+          "일을 하면서 성취감을 느낀다",
+          "업무를 통해 자아실현을 추구한다",
+          "일 자체가 보상이라고 느낀다",
+          "어려운 일도 도전으로 받아들인다",
+          "성장하는 느낌을 중요하게 생각한다",
+        ],
+      },
+      {
+        id: "thought",
+        title: "건설적사고전략",
+        subtitle: "Constructive Thought Strategies",
+        desc: "긍정적 사고 패턴을 만드는 능력",
+        color: "#7A2E0E",
+        accent: "#E8631A",
+        items: [
+          "긍정적인 측면을 찾으려 노력한다",
+          "부정적 생각을 건설적으로 바꾼다",
+          "실패를 학습의 기회로 본다",
+          "자신에게 긍정적으로 말한다",
+          "성공한 모습을 상상한다",
+          "어려움에서도 가능성을 본다",
+          "비합리적인 가정과 믿음을 점검한다",
+          "자기대화를 의식적으로 관리한다",
+        ],
+      },
+    ];
+
+    const getInterpretation = (total) => {
+      if (total >= 100) return { label: "매우 높은 셀프리더십", desc: "자기주도적으로 삶을 이끌고 있습니다", color: "#5ef0a5" };
+      if (total >= 80)  return { label: "높은 셀프리더십",      desc: "자신을 잘 관리하고 있습니다",         color: "#7bb3e8" };
+      if (total >= 60)  return { label: "보통 수준",            desc: "개선을 통해 더 성장할 수 있습니다",    color: "#f0d45e" };
+      if (total >= 40)  return { label: "낮은 셀프리더십",      desc: "체계적인 개선이 필요합니다",          color: "#f0a05e" };
+      return               { label: "매우 낮음",            desc: "외부 의존도가 높은 상태입니다",       color: "#f07070" };
+    };
+
+    const improvementTips = {
+      behavior: "목표 설정, 자기 점검 훈련이 필요합니다. 하루의 시작과 끝에 3분씩 계획·점검 루틴을 만들어 보세요.",
+      natural:  "일의 의미를 재발견하고 흥미 요소를 찾아보세요. 업무의 어떤 부분이 당신을 살아있게 만드는지 탐색하세요.",
+      thought:  "인지 왜곡을 점검하고 긍정 훈련이 필요합니다. 매일 자기대화를 관찰하고 의식적으로 전환해 보세요.",
+    };
+
+    function RadarChart({ scores }) {
+      const cx = 120, cy = 120, r = 82;
+      const labels = ["행동중심", "자연적보상", "건설적사고"];
+      const maxScore = 40;
+      const angles = [-90, 30, 150].map((a) => (a * Math.PI) / 180);
+      const toXY = (angle, radius) => ({ x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
+      const gridLevels = [0.25, 0.5, 0.75, 1];
+      const sectionColors = ["#2563A8", "#2da882", "#E8631A"];
+
+      const dataPoints = scores.map((s, i) => {
+        const ratio = Math.min(s / maxScore, 1);
+        return toXY(angles[i], r * ratio);
+      });
+      const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+
+      return (
+        <svg viewBox="0 0 240 240" style={{ width: "100%", maxWidth: 240 }}>
+          {gridLevels.map((level, li) => {
+            const pts = angles.map((a) => toXY(a, r * level));
+            const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+            return <path key={li} d={path} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />;
+          })}
+          {angles.map((a, i) => {
+            const end = toXY(a, r);
+            return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />;
+          })}
+          <path d={dataPath} fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+          {dataPoints.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="5" fill={sectionColors[i]} stroke="white" strokeWidth="1.5" />
+          ))}
+          {angles.map((a, i) => {
+            const pos = toXY(a, r + 22);
+            return (
+              <text key={i} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="middle"
+                fill="rgba(255,255,255,0.8)" fontSize="9" fontFamily="Pretendard, sans-serif" fontWeight="600">
+                {labels[i]}
+              </text>
+            );
+          })}
+          {scores.map((s, i) => {
+            const ratio = Math.min(s / maxScore, 1);
+            const pos = toXY(angles[i], r * ratio + (ratio < 0.2 ? 14 : -14));
+            return (
+              <text key={i} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="middle"
+                fill="white" fontSize="10" fontWeight="700" fontFamily="Pretendard, sans-serif">
+                {s}
+              </text>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    function ScoreBar({ score, max, color }) {
+      const pct = (score / max) * 100;
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, height: 7, background: "rgba(255,255,255,0.12)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, transition: "width 1s cubic-bezier(.4,0,.2,1)" }} />
+          </div>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", minWidth: 42, textAlign: "right" }}>{score} / {max}</span>
+        </div>
+      );
+    }
+
+    function App() {
+      const [step, setStep] = useState("intro");
+      const [currentSection, setCurrentSection] = useState(0);
+      const [answers, setAnswers] = useState(SECTIONS.map((s) => Array(s.items.length).fill(0)));
+      const [animateIn, setAnimateIn] = useState(false);
+
+      useEffect(() => {
+        setAnimateIn(false);
+        const t = setTimeout(() => setAnimateIn(true), 60);
+        return () => clearTimeout(t);
+      }, [step, currentSection]);
+
+      const sectionScores = answers.map((ans) => ans.reduce((a, b) => a + b, 0));
+      const totalScore = sectionScores.reduce((a, b) => a + b, 0);
+      const interp = getInterpretation(totalScore);
+
+      const section = SECTIONS[currentSection];
+      const currentAnswers = answers[currentSection];
+      const allAnswered = currentAnswers.every((a) => a > 0);
+      const progress = currentAnswers.filter((a) => a > 0).length;
+
+      const setAnswer = (itemIdx, val) => {
+        setAnswers((prev) => {
+          const next = prev.map((a) => [...a]);
+          next[currentSection][itemIdx] = val;
+          return next;
+        });
+      };
+
+      const lowestSection = sectionScores.indexOf(Math.min(...sectionScores));
+      const lowestItems = answers[lowestSection]
+        .map((v, i) => ({ v, i }))
+        .sort((a, b) => a.v - b.v)
+        .slice(0, 2)
+        .map(({ i }) => SECTIONS[lowestSection].items[i]);
+
+      const baseCard = {
+        width: "100%",
+        maxWidth: 560,
+        opacity: animateIn ? 1 : 0,
+        transform: animateIn ? "translateY(0)" : "translateY(16px)",
+        transition: "opacity 0.35s ease, transform 0.35s ease",
+      };
+
+      const wrap = {
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0f1b2d 0%, #1a2e4a 50%, #0d1f1a 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+      };
+
+      // ── INTRO ──────────────────────────────────────────────────────────────
+      if (step === "intro") return (
+        <div style={wrap}>
+          <div style={baseCard}>
+            <div style={{ textAlign: "center", marginBottom: 36 }}>
+              <div style={{
+                display: "inline-block", background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)", borderRadius: 100,
+                padding: "5px 16px", fontSize: 10, color: "rgba(255,255,255,0.45)",
+                letterSpacing: 3, textTransform: "uppercase", marginBottom: 22,
+              }}>Self-Leadership Diagnosis</div>
+              <h1 style={{ fontSize: "clamp(26px,5vw,36px)", fontWeight: 800, color: "white", lineHeight: 1.25, marginBottom: 12, letterSpacing: -0.5 }}>
+                셀프리더십<br /><span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}>진단 도구</span>
+              </h1>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.9 }}>
+                『스스로 움직이는 팀을 만드는 기술』<br />
+                <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 11 }}>곽자향 저 · KSI 한국학술정보</span>
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 30 }}>
+              {SECTIONS.map((s, i) => (
+                <div key={i} style={{
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: 14, padding: "15px 18px", display: "flex", alignItems: "center", gap: 14,
+                }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    background: s.accent + "22", border: `1px solid ${s.accent}44`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 15, fontWeight: 800, color: s.accent,
+                  }}>{["B","N","C"][i]}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "white", marginBottom: 2 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>{s.desc} · 8문항</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 12, padding: "13px 16px", marginBottom: 24,
+              display: "flex", gap: 12, alignItems: "flex-start",
+            }}>
+              <span style={{ fontSize: 17 }}>📋</span>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.42)", lineHeight: 1.85 }}>
+                총 <strong style={{ color: "rgba(255,255,255,0.7)" }}>24문항</strong>으로 구성됩니다.<br />
+                현재 행동과 가장 가까운 점수를 선택하세요.<br />
+                <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 11 }}>1점(전혀 그렇지 않다) ~ 5점(매우 그렇다)</span>
+              </p>
+            </div>
+
+            <button
+              onClick={() => { setStep("section"); setCurrentSection(0); }}
+              style={{
+                width: "100%", padding: "16px",
+                background: "linear-gradient(135deg, #2563A8, #1A6B8A)",
+                color: "white", borderRadius: 13, fontSize: 15, fontWeight: 700,
+                letterSpacing: 0.5, boxShadow: "0 8px 28px rgba(37,99,168,0.4)",
+              }}
+            >진단 시작하기 →</button>
+          </div>
+        </div>
+      );
+
+      // ── SECTION ────────────────────────────────────────────────────────────
+      if (step === "section") return (
+        <div style={wrap}>
+          <div style={baseCard}>
+            {/* Progress dots */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {SECTIONS.map((_, i) => (
+                  <div key={i} style={{
+                    height: 4, width: i === currentSection ? 26 : 14, borderRadius: 2,
+                    background: i <= currentSection ? section.accent : "rgba(255,255,255,0.14)",
+                    transition: "all 0.3s ease",
+                  }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.32)", letterSpacing: 1 }}>{currentSection + 1} / 3</span>
+            </div>
+
+            {/* Section header */}
+            <div style={{
+              background: `linear-gradient(135deg, ${section.color}bb, ${section.accent}33)`,
+              border: `1px solid ${section.accent}44`, borderRadius: 15,
+              padding: "18px 20px", marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: section.accent, letterSpacing: 2, marginBottom: 5, textTransform: "uppercase", fontWeight: 600 }}>
+                {section.subtitle}
+              </div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "white", marginBottom: 3 }}>{section.title}</h2>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.48)" }}>{section.desc}</p>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", marginBottom: 16 }}>
+              <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.09)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                  width: `${(progress / section.items.length) * 100}%`, height: "100%",
+                  background: section.accent, borderRadius: 2, transition: "width 0.3s ease",
+                }} />
+              </div>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", minWidth: 36 }}>{progress}/{section.items.length}</span>
+            </div>
+
+            {/* Questions */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+              {section.items.map((item, idx) => {
+                const selected = currentAnswers[idx];
+                return (
+                  <div key={idx} style={{
+                    background: selected ? `${section.accent}11` : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${selected ? section.accent + "44" : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: 13, padding: "14px 16px", transition: "all 0.2s ease",
+                  }}>
+                    <p style={{
+                      fontSize: 13, color: selected ? "white" : "rgba(255,255,255,0.62)",
+                      lineHeight: 1.6, marginBottom: 12, fontWeight: selected ? 500 : 400,
+                    }}>
+                      <span style={{ color: section.accent, fontWeight: 700, marginRight: 6, fontSize: 11 }}>Q{idx + 1}</span>
+                      {item}
+                    </p>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {[1,2,3,4,5].map((val) => (
+                        <button key={val} className="score-btn"
+                          onClick={() => setAnswer(idx, val)}
+                          style={{
+                            flex: 1, height: 38, borderRadius: 9,
+                            background: selected === val ? section.accent : "rgba(255,255,255,0.07)",
+                            color: selected === val ? "white" : "rgba(255,255,255,0.38)",
+                            fontSize: 14, fontWeight: 700,
+                            border: `1.5px solid ${selected === val ? section.accent : "rgba(255,255,255,0.1)"}`,
+                            boxShadow: selected === val ? `0 3px 12px ${section.accent}55` : "none",
+                          }}>
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, paddingInline: 2 }}>
+                      <span style={{ fontSize: 9, color: "rgba(255,255,255,0.22)" }}>전혀 그렇지 않다</span>
+                      <span style={{ fontSize: 9, color: "rgba(255,255,255,0.22)" }}>매우 그렇다</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Nav buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {currentSection > 0 && (
+                <button onClick={() => setCurrentSection(currentSection - 1)}
+                  style={{
+                    flex: 1, padding: "14px", background: "rgba(255,255,255,0.06)",
+                    color: "rgba(255,255,255,0.55)", borderRadius: 11, fontSize: 14, fontWeight: 600,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}>← 이전</button>
+              )}
+              <button
+                onClick={() => {
+                  if (!allAnswered) return;
+                  if (currentSection < 2) setCurrentSection(currentSection + 1);
+                  else setStep("result");
+                }}
+                disabled={!allAnswered}
+                style={{
+                  flex: 2, padding: "14px",
+                  background: allAnswered ? `linear-gradient(135deg, ${section.accent}, ${section.color})` : "rgba(255,255,255,0.05)",
+                  color: allAnswered ? "white" : "rgba(255,255,255,0.22)",
+                  borderRadius: 11, fontSize: 14, fontWeight: 700, border: "none",
+                  boxShadow: allAnswered ? `0 5px 20px ${section.accent}44` : "none",
+                  transition: "all 0.2s ease",
+                }}>
+                {!allAnswered
+                  ? `${section.items.length - progress}개 문항 남았습니다`
+                  : currentSection < 2 ? "다음 영역으로 →" : "결과 보기 →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── RESULT ─────────────────────────────────────────────────────────────
+      return (
+        <div style={{ ...wrap }}>
+          <div style={{ ...baseCard, maxWidth: 600 }}>
+
+            {/* Total score */}
+            <div style={{
+              background: "linear-gradient(135deg, #0d1a2d, #1a3050)",
+              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18,
+              padding: "28px 24px", marginBottom: 18, textAlign: "center", position: "relative", overflow: "hidden",
+            }}>
+              <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                background: "radial-gradient(circle at 50% 0%, rgba(37,99,168,0.18) 0%, transparent 70%)",
+                pointerEvents: "none",
+              }} />
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.38)", letterSpacing: 3, marginBottom: 14, textTransform: "uppercase" }}>
+                전체 셀프리더십 점수
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 5, marginBottom: 12 }}>
+                <span style={{ fontSize: 68, fontWeight: 900, color: "white", lineHeight: 1, letterSpacing: -3 }}>{totalScore}</span>
+                <span style={{ fontSize: 20, color: "rgba(255,255,255,0.28)", fontWeight: 300 }}>/120</span>
+              </div>
+              <div style={{
+                display: "inline-block",
+                background: interp.color + "22",
+                border: `1px solid ${interp.color}55`,
+                borderRadius: 100, padding: "5px 18px", marginBottom: 8,
+              }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: interp.color }}>{interp.label}</span>
+              </div>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.42)" }}>{interp.desc}</p>
+            </div>
+
+            {/* Radar + bars */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+              <div style={{
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 15, padding: 18, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <RadarChart scores={sectionScores} />
+              </div>
+              <div style={{
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 15, padding: 18, display: "flex", flexDirection: "column", gap: 16, justifyContent: "center",
+              }}>
+                {SECTIONS.map((s, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 6 }}>{s.title}</div>
+                    <ScoreBar score={sectionScores[i]} max={40} color={s.accent} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Lowest section */}
+            <div style={{
+              background: `linear-gradient(135deg, ${SECTIONS[lowestSection].color}55, ${SECTIONS[lowestSection].accent}22)`,
+              border: `1px solid ${SECTIONS[lowestSection].accent}44`,
+              borderRadius: 15, padding: "18px 20px", marginBottom: 14,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  background: SECTIONS[lowestSection].accent + "33",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                }}>🎯</div>
+                <div>
+                  <div style={{ fontSize: 10, color: SECTIONS[lowestSection].accent, fontWeight: 600, letterSpacing: 1 }}>우선 개선 영역</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "white" }}>{SECTIONS[lowestSection].title}</div>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, marginBottom: 14 }}>
+                {improvementTips[SECTIONS[lowestSection].id]}
+              </p>
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 10, letterSpacing: 1 }}>2주 실천 목표 문항</div>
+                {lowestItems.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 1,
+                      background: SECTIONS[lowestSection].accent + "33",
+                      border: `1px solid ${SECTIONS[lowestSection].accent}66`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 9, color: SECTIONS[lowestSection].accent, fontWeight: 700,
+                    }}>{i + 1}</div>
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action plan */}
+            <div style={{
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 13, padding: "15px 16px", marginBottom: 20,
+            }}>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.32)", letterSpacing: 1, marginBottom: 10 }}>📅 개선 액션 플랜</div>
+              {[
+                "점수가 낮은 영역 1개 선택 (완료)",
+                "가장 낮은 점수 문항 2개 선택 (완료)",
+                "2주 동안 그 2개 행동을 의식적으로 실천",
+                "2주 후 재측정하여 변화 확인",
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "6px 0",
+                  borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                }}>
+                  <div style={{
+                    width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                    background: i < 2 ? "rgba(94,240,165,0.2)" : "rgba(255,255,255,0.06)",
+                    border: `1px solid ${i < 2 ? "rgba(94,240,165,0.5)" : "rgba(255,255,255,0.12)"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 9, color: i < 2 ? "#5ef0a5" : "rgba(255,255,255,0.28)",
+                  }}>{i < 2 ? "✓" : i + 1}</div>
+                  <span style={{
+                    fontSize: 12,
+                    color: i < 2 ? "rgba(255,255,255,0.38)" : "rgba(255,255,255,0.7)",
+                    textDecoration: i < 2 ? "line-through" : "none",
+                  }}>{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => { setAnswers(SECTIONS.map((s) => Array(s.items.length).fill(0))); setCurrentSection(0); setStep("intro"); }}
+              style={{
+                width: "100%", padding: "14px", background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.55)", borderRadius: 11, fontSize: 14, fontWeight: 600,
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}>↺ 다시 진단하기</button>
+
+            <p style={{ textAlign: "center", marginTop: 18, fontSize: 10, color: "rgba(255,255,255,0.18)", lineHeight: 1.9 }}>
+              『스스로 움직이는 팀을 만드는 기술』 부록 수록<br />
+              곽자향 저 · KSI 한국학술정보
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
